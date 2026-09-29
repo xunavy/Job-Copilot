@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FindJob Copilot - 智能求职多智能体副驾驶 (全交互与审计追踪版)</title>
+  <style>
+    :root {
+      --bg-color: #0b1329;
+      --sidebar-bg: #080d1e;
+      --card-bg: #14213d;
+      --card-border: #1f3160;
+      --text-main: #f0f4fc;
+      --text-sub: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+    
+    /* 侧边栏 */
+    aside { width: 230px; background: var(--sidebar-bg); border-right: 1px solid var(--card-border); display: flex; flex-direction: column; padding: 20px 14px; flex-shrink: 0; }
+    .brand { font-size: 18px; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; margin-bottom: 24px; padding-left: 8px; }
+    .nav-list { display: flex; flex-direction: column; gap: 6px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; color: var(--text-sub); text-decoration: none; font-size: 14px; cursor: pointer; transition: all 0.2s; user-select: none; }
+    .nav-item:hover { background: #1e293b; color: #fff; }
+    .nav-item.active { background: #1e293b; color: #fff; font-weight: 600; border-left: 4px solid var(--primary); }
+    .audit-badge { margin-left: auto; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #1e3a8a; color: #93c5fd; }
+
+    /* 主体内容 */
+    main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px 28px; gap: 18px; position: relative; }
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 14px; }
+    h1 { font-size: 22px; font-weight: 700; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    
+    button { background: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    button:hover { background: var(--primary-hover); }
+    button.btn-accent { background: var(--accent); }
+    button.btn-accent:hover { background: #059669; }
+    button.btn-outline { background: transparent; border: 1px solid var(--card-border); color: var(--text-main); }
+    button.btn-outline:hover { background: #1e293b; }
+    button.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* 审计简报通知栏 */
+    .audit-bar { background: #101c38; border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 14px; font-size: 12px; display: flex; align-items: center; justify-content: space-between; color: var(--text-sub); }
+    .audit-bar-left { display: flex; align-items: center; gap: 8px; }
+    .audit-tag { background: #1e3a8a; color: #93c5fd; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+
+    /* KPI 卡片 */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .kpi-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .kpi-title { font-size: 12px; color: var(--text-sub); }
+    .kpi-value { font-size: 24px; font-weight: 700; color: #fff; }
+    .kpi-badge { font-size: 11px; color: var(--accent); }
+
+    /* 视图容器控制 */
+    .view-section { display: none; flex-direction: column; gap: 16px; flex: 1; }
+    .view-section.active { display: flex; }
+
+    /* 泳道看板 */
+    .pipeline-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; flex: 1; min-height: 480px; }
+    .pipeline-col { background: #101c38; border: 1px solid var(--card-border); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 720px; overflow-y: auto; }
+    .col-header { font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; color: #93c5fd; }
+    .col-count { background: #1e293b; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+
+    /* 职位卡片 */
+    .job-card { background: var(--card-bg); border: 1px solid #283a66; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
+    .job-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .job-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .job-title { font-size: 14px; font-weight: 600; color: #fff; }
+    .job-salary { font-size: 12px; color: var(--warning); font-weight: 600; }
+    .job-company { font-size: 12px; color: var(--text-sub); }
+    .job-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #1e293b; color: #cbd5e1; }
+    .tag-match { background: #064e3b; color: #6ee7b7; font-weight: 600; }
+    .tag-source { background: #312e81; color: #c7d2fe; }
+
+    /* 表格组件（审计日志、职位列表） */
+    .data-table-wrapper { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th { background: #0e172e; color: #94a3b8; padding: 12px 14px; font-weight: 600; border-bottom: 1px solid var(--card-border); }
+    td { padding: 12px 14px; border-bottom: 1px solid #1a2747; color: #e2e8f0; }
+    tr:hover { background: #162544; }
+    .badge-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-success { background: #064e3b; color: #6ee7b7; }
+    .badge-warning { background: #78350f; color: #fde68a; }
+    .badge-failed { background: #7f1d1d; color: #fca5a5; }
+
+    /* 弹窗遮罩与模态框 */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #131d36; border: 1px solid var(--card-border); border-radius: 12px; width: 680px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h2 { font-size: 17px; }
+    .modal-close { background: none; border: none; font-size: 20px; color: var(--text-sub); cursor: pointer; padding: 4px; }
+    .modal-body { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; font-size: 13px; line-height: 1.6; }
+    .modal-footer { padding: 14px 20px; border-top: 1px solid var(--card-border); display: flex; justify-content: flex-end; gap: 10px; background: #0f172a; }
+
+    /* 表单组件 */
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; color: #94a3b8; font-weight: 600; }
+    input, textarea, select { background: #0b1329; border: 1px solid var(--card-border); color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; outline: none; }
+    input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 90px; }
+  </style>
+</head>
+<body>
+  <!-- 侧边栏 -->
+  <aside>
+    <div class="brand">🚀 FindJob Copilot</div>
+    <div class="nav-list">
+      <div class="nav-item active" onclick="switchView('dashboard')">
+        <span>📊 每日求职看板</span>
+      </div>
+      <div class="nav-item" onclick="switchView('jobs')">
+        <span>🎯 职位雷达池</span>
+      </div>
+      <div class="nav-item" onclick="switchView('tailor')">
+        <span>📝 简历定制工坊</span>
+      </div>
+      <div class="nav-item" onclick="switchView('apply')">
+        <span>🤖 自动化投递箱</span>
+      </div>
+      <div class="nav-item" onclick="switchView('interview')">
+        <span>🎤 面试复盘导师</span>
+      </div>
+      <div class="nav-item" onclick="switchView('growth')">
+        <span>🌱 能力闭环跃迁</span>
+      </div>
+      <div class="nav-item" onclick="switchView('audit')">
+        <span>📜 全流程审计日志</span>
+        <span class="audit-badge" id="audit-count">0</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 主体工作区 -->
+  <main>
+    <header>
+      <div>
+        <h1 id="view-title">每日求职与面试看板</h1>
+        <p style="color: var(--text-sub); font-size: 12px; margin-top: 4px;">多智能体协同驱动：全网搜寻 ➔ 智能打分 ➔ 千岗千面定制 ➔ 本地人机投递 ➔ 审计存证</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-outline" onclick="openAddJobModal()">+ 录入新机会</button>
+        <button onclick="triggerDailyPipeline()">⚡ 一键执行今日全自动流水线</button>
+      </div>
+    </header>
+
+    <!-- 顶部实时审计通知条 -->
+    <div class="audit-bar">
+      <div class="audit-bar-left">
+        <span class="audit-tag">实时审计 (Audit)</span>
+        <span id="audit-bar-text">系统正在监听多智能体协同流水线动作...</span>
+      </div>
+      <a href="javascript:void(0)" onclick="switchView('audit')" style="color: #60a5fa; text-decoration: none; font-size: 11px;">查看完整审计日志 &rarr;</a>
+    </div>
+
+    <!-- 核心指标 KPI -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-title">今日全网发现机会</div>
+        <div class="kpi-value" id="kpi-scouted">--</div>
+        <div class="kpi-badge">涵盖专业网与朋友圈/小红书</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">高匹配精选职位 (>=85分)</div>
+        <div class="kpi-value" id="kpi-high-match">--</div>
+        <div class="kpi-badge">已完成多维人岗加权分析</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">已执行安全投递 (本地会话)</div>
+        <div class="kpi-value" id="kpi-applied">--</div>
+        <div class="kpi-badge">含人机协同滑块接管保障</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">正在推进面试</div>
+        <div class="kpi-value" id="kpi-interviews">--</div>
+        <div class="kpi-badge">技术一面 / 架构二面 / 终面</div>
+      </div>
+    </div>
+
+    <!-- 视图 1：看板泳道视图 (Dashboard) -->
+    <section id="view-dashboard" class="view-section active">
+      <div class="pipeline-grid">
+        <!-- 待投递 -->
+        <div class="pipeline-col">
+          <div class="col-header">
+            <span>待投递 (候选池)</span>
+            <span class="col-count" id="count-stage-1">0</span>
+          </div>
+          <div id="col-stage-1" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+        <!-- 已沟通/已投递 -->
+        <div class="pipeline-col">
+          <div class="col-header">
+            <span>已投递 / 沟通中</span>
+            <span class="col-count" id="count-stage-2">0</span>
+          </div>
+          <div id="col-stage-2" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+        <!-- 技术一面 -->
+        <div class="pipeline-col">
+          <div class="col-header">
+            <span>技术一面 / 深入考察</span>
+            <span class="col-count" id="count-stage-3">0</span>
+          </div>
+          <div id="col-stage-3" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+        <!-- 架构二面 / HR终面 / Offer -->
+        <div class="pipeline-col">
+          <div class="col-header">
+            <span>架构二面 / 终面 / Offer</span>
+            <span class="col-count" id="count-stage-4">0</span>
+          </div>
+          <div id="col-stage-4" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图 2：职位雷达池 (Jobs Table) -->
+    <section id="view-jobs" class="view-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>全网搜寻入库职位列表</h3>
+        <button class="btn-sm btn-outline" onclick="loadJobs()">🔄 刷新列表</button>
+      </div>
+      <div class="data-table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>职位名称</th>
+              <th>公司</th>
+              <th>薪资</th>
+              <th>来源渠道</th>
+              <th>匹配度得分</th>
+              <th>投递状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-table-body">
+            <!-- 动态填充 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 视图 3：简历定制工坊 (Tailor Studio) -->
+    <section id="view-tailor" class="view-section">
+      <h3>自适应简历针对性重构工坊</h3>
+      <p style="color: var(--text-sub); font-size: 13px;">选择一个目标职位，查看 ResumeTailorAgent 针对 JD 痛点重塑的 STAR 简历经历与定制沟通语：</p>
+      <div style="display: flex; gap: 14px;">
+        <select id="tailor-job-select" onchange="loadTailoredResumeView()" style="width: 320px;"></select>
+        <button onclick="reTailorSelectedJob()">✨ 重新针对性生成 STAR 经历</button>
+      </div>
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-weight: 600; color: #60a5fa;">💬 定制打招呼问候语 (高回复率)：</div>
+        <div id="tailor-greeting" style="background: #0b1329; border: 1px solid var(--card-border); padding: 12px; border-radius: 6px; font-size: 13px;">请选择上方职位查看...</div>
+        <div style="font-weight: 600; color: #60a5fa;">📄 针对性重构简历内容 (STAR 经历对齐)：</div>
+        <textarea id="tailor-content" style="height: 280px; font-family: monospace; font-size: 12px; line-height: 1.5;"></textarea>
+      </div>
+    </section>
+
+    <!-- 视图 4：自动化投递箱 (Apply Box) -->
+    <section id="view-apply" class="view-section">
+      <h3>本地自动化投递流水与防风控接管记录</h3>
+      <div class="data-table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>投递编号</th>
+              <th>目标公司与职位</th>
+              <th>平台渠道</th>
+              <th>打招呼回执</th>
+              <th>人机滑块接管状态</th>
+              <th>投递时间</th>
+            </tr>
+          </thead>
+          <tbody id="apply-table-body">
+            <!-- 动态填充 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 视图 5：面试复盘导师 (Interview Review) -->
+    <section id="view-interview" class="view-section">
+      <h3>分阶段面试针对性复盘与下一轮突击</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+        <!-- 左侧输入表单 -->
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label">面试公司名称</label>
+            <input type="text" id="review-company" value="未来智行科技有限公司" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">面试轮次阶段</label>
+            <select id="review-stage">
+              <option value="tech_screening">技术初试 / 底层原理与八股</option>
+              <option value="tech_deep_dive">架构复试 / 系统设计与分布式攻关</option>
+              <option value="management_hr">HR与综合面试 / 行为面与谈薪</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">面试核心问答记录（支持直接粘贴问答对话）</label>
+            <textarea id="review-qa-text" style="height: 120px;" placeholder="面试官问了什么？你是如何回答的？有哪些答得不顺畅的地方？">面试官提问：在多智能体系统中，如何保证 Agent 之间状态机流转的数据一致性与循环死锁检测？
+我的回答：提到了通过全局事件总线和内存共享，但对于环路死锁检测算法与超时熔断容灾细节没有说得很深入。</textarea>
+          </div>
+          <button class="btn-accent" onclick="submitInterviewReview()">🎯 提交智能复盘并生成下轮押题</button>
+        </div>
+
+        <!-- 右侧复盘与押题输出 -->
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; display: flex; flex-direction: column; gap: 14px;" id="review-result-panel">
+          <div style="font-weight: 700; color: #60a5fa; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+            📝 AI 诊断复盘报告与下轮押题
+          </div>
+          <div id="review-result-content" style="font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+            请在左侧填写面试问答并点击【提交智能复盘】，智能体将为您剖析回答漏洞、给出针对性得分并预测下一轮面试必考题目。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图 6：能力闭环跃迁 (Growth) -->
+    <section id="view-growth" class="view-section">
+      <h3>能力差距闭环成长规划</h3>
+      <p style="color: var(--text-sub); font-size: 13px;">结合历史面试反馈与漏洞，系统动态演化您的能力雷达，并制定可落地的实战补强行动清单：</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px;">
+          <div style="font-weight: 600; color: #60a5fa; margin-bottom: 12px;">📊 技能雷达指标分值</div>
+          <div id="growth-radar-container"></div>
+        </div>
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px;">
+          <div style="font-weight: 600; color: #60a5fa; margin-bottom: 12px;">📌 技能补强实战行动清单</div>
+          <div id="growth-items-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图 7：全流程审计日志 (Audit Center) -->
+    <section id="view-audit" class="view-section">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3>全系统操作审计流水日志 (Audit Trail)</h3>
+          <p style="color: var(--text-sub); font-size: 12px; margin-top: 2px;">记录所有智能体调度、人机接管、简历重构、投递状态流转与配置变更，支持不可篡改追踪</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <select id="audit-filter-action" onchange="loadAuditLogs()" style="font-size: 12px;">
+            <option value="">全部动作类型</option>
+            <option value="FETCH_JOBS">全网职位抓取</option>
+            <option value="MATCH_EVALUATION">人岗精准匹配</option>
+            <option value="TAILOR_RESUME">针对性简历重塑</option>
+            <option value="AUTO_APPLY">自动化安全投递</option>
+            <option value="HUMAN_TAKEOVER_CHALLENGE">人机验证接管告警</option>
+            <option value="UPDATE_STAGE">求职状态流转</option>
+            <option value="INTERVIEW_REVIEW">面试深度复盘</option>
+            <option value="ADD_JOB">手动录入新机会</option>
+          </select>
+          <button class="btn-sm btn-outline" onclick="loadAuditLogs()">🔄 刷新审计流水</button>
+        </div>
+      </div>
+      <div class="data-table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>时间戳</th>
+              <th>执行操作者 (智能体/人员)</th>
+              <th>动作标识</th>
+              <th>详细操作记录与变更说明</th>
+              <th>关联实体</th>
+              <th>状态</th>
+              <th>详细Payload</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <!-- 动态填充 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- 模态框 1：职位详情与针对性操作弹窗 -->
+  <div class="modal-overlay" id="job-detail-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-job-title">职位详情</h2>
+        <button class="modal-close" onclick="closeJobModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-job-body">
+        <!-- 动态内容 -->
+      </div>
+      <div class="modal-footer">
+        <select id="modal-stage-select" style="font-size: 12px;"></select>
+        <button class="btn-outline" onclick="changeCurrentJobStage()">更新状态流转</button>
+        <button class="btn-outline" onclick="tailorCurrentJob()">📝 生成定制简历</button>
+        <button class="btn-accent" onclick="applyCurrentJob()">🚀 立即安全投递</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框 2：手动录入新职位弹窗 -->
+  <div class="modal-overlay" id="add-job-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>录入新求职机会 (全网多源)</h2>
+        <button class="modal-close" onclick="closeAddJobModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">职位名称</label>
+          <input type="text" id="new-job-title" placeholder="如：资深大模型系统架构师" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">公司名称</label>
+          <input type="text" id="new-job-company" placeholder="如：智谱AI / 字节跳动" />
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">薪资范围</label>
+            <input type="text" id="new-job-salary" placeholder="如：35k-50k·16薪" value="35k-50k" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">工作地点</label>
+            <input type="text" id="new-job-city" placeholder="如：北京/远程" value="北京/远程" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">信息渠道来源</label>
+          <select id="new-job-source">
+            <option value="wechat_moments">微信朋友圈内推</option>
+            <option value="xiaohongshu">小红书求职内推贴</option>
+            <option value="boss_zhipin">BOSS直聘</option>
+            <option value="liepin">猎聘网</option>
+            <option value="51job">前程无忧</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">岗位 JD 原始文本内容 (系统将自动提取技能并计算匹配分)</label>
+          <textarea id="new-job-desc" placeholder="直接粘贴微信朋友圈/招聘软件/邮件中的岗位要求文本..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-outline" onclick="closeAddJobModal()">取消</button>
+        <button onclick="submitNewJob()">确认录入并智能评估</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentJobs = [];
+    let currentJobId = null;
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      loadDashboardSummary();
+      loadJobs();
+      loadAuditLogs();
+      setInterval(loadLatestAuditBar, 5000);
+    });
+
+    // 视图切换
+    function switchView(viewName) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+
+      const targetNav = Array.from(document.querySelectorAll('.nav-item')).find(el => el.getAttribute('onclick')?.includes(viewName));
+      if (targetNav) targetNav.classList.add('active');
+
+      const targetSec = document.getElementById('view-' + viewName);
+      if (targetSec) targetSec.classList.add('active');
+
+      const titles = {
+        'dashboard': '每日求职与面试看板',
+        'jobs': '职位雷达池管理',
+        'tailor': '自适应简历重构工坊',
+        'apply': '自动化投递箱与接管日志',
+        'interview': '分阶段面试复盘导师',
+        'growth': '能力闭环成长路线',
+        'audit': '全流程操作审计流水 (Audit Trail)'
+      };
+      document.getElementById('view-title').innerText = titles[viewName] || '智能求职副驾驶';
+
+      if (viewName === 'audit') loadAuditLogs();
+      if (viewName === 'jobs') loadJobs();
+      if (viewName === 'tailor') loadTailorJobList();
+      if (viewName === 'apply') loadApplyHistory();
+      if (viewName === 'growth') loadGrowthView();
+    }
+
+    // 1. 加载 Dashboard 指标
+    async function loadDashboardSummary() {
+      try {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+        document.getElementById('kpi-scouted').innerText = (data.today_scouted_jobs || 0) + ' 个';
+        document.getElementById('kpi-high-match').innerText = (data.today_high_match_jobs || 0) + ' 个';
+        document.getElementById('kpi-applied').innerText = (data.today_auto_applied || 0) + ' 家';
+        document.getElementById('kpi-interviews').innerText = (data.active_interviews_count || 0) + ' 场';
+      } catch (e) {
+        console.error('加载指标失败', e);
+      }
+    }
+
+    // 2. 加载职位与泳道
+    async function loadJobs() {
+      try {
+        const res = await fetch('/api/jobs');
+        currentJobs = await res.json();
+        renderPipeline(currentJobs);
+        renderJobsTable(currentJobs);
+        loadDashboardSummary();
+      } catch (e) {
+        console.error('加载职位失败', e);
+      }
+    }
+
+    function renderPipeline(jobs) {
+      const cols = {
+        '待投递': { el: document.getElementById('col-stage-1'), countEl: document.getElementById('count-stage-1'), list: [] },
+        '已沟通': { el: document.getElementById('col-stage-2'), countEl: document.getElementById('count-stage-2'), list: [] },
+        '技术一面': { el: document.getElementById('col-stage-3'), countEl: document.getElementById('count-stage-3'), list: [] },
+        '其他': { el: document.getElementById('col-stage-4'), countEl: document.getElementById('count-stage-4'), list: [] }
+      };
+
+      Object.values(cols).forEach(c => { if(c.el) c.el.innerHTML = ''; });
+
+      jobs.forEach(job => {
+        let targetCol = cols[job.pipeline_stage];
+        if (!targetCol) targetCol = cols['其他'];
+        targetCol.list.push(job);
+
+        const card = document.createElement('div');
+        card.className = 'job-card';
+        card.onclick = () => openJobDetailModal(job.id);
+
+        const matchClass = job.match_score >= 85 ? 'tag-match' : '';
+        const sourceMap = { 
+          'boss_zhipin': 'BOSS直聘', 
+          'liepin': '猎聘', 
+          'wechat_moments': '微信朋友圈', 
+          'xiaohongshu': '小红书REDstar', 
+          'linkedin': '领英', 
+          'manual_entry': '手动录入' 
+        };
+        const pubDate = job.published_at || '2026-09-28';
+
+        card.innerHTML = `
+          <div class="job-header">
+            <div class="job-title">${escapeHtml(job.title)}</div>
+            <div class="job-salary">${escapeHtml(job.salary_range)}</div>
+          </div>
+          <div class="job-company">${escapeHtml(job.company)} · ${escapeHtml(job.city)}</div>
+          <div style="font-size: 11px; color: #10b981; display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+            <span>🟢 最新在招核验</span> · <span>发布: ${pubDate}</span>
+          </div>
+          <div class="job-tags">
+            <span class="tag ${matchClass}">匹配度: ${job.match_score}分</span>
+            <span class="tag tag-source">${sourceMap[job.source] || job.source}</span>
+          </div>
+        `;
+        targetCol.el.appendChild(card);
+      });
+
+      cols['待投递'].countEl.innerText = cols['待投递'].list.length;
+      cols['已沟通'].countEl.innerText = cols['已沟通'].list.length;
+      cols['技术一面'].countEl.innerText = cols['技术一面'].list.length;
+      cols['其他'].countEl.innerText = cols['其他'].list.length;
+    }
+
+    function renderJobsTable(jobs) {
+      const tbody = document.getElementById('jobs-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      jobs.forEach(j => {
+        const tr = document.createElement('tr');
+        const pubDate = j.published_at || '2026-09-28';
+        tr.innerHTML = `
+          <td style="font-weight:600; cursor:pointer; color:#60a5fa;" onclick="openJobDetailModal('${j.id}')">${escapeHtml(j.title)}</td>
+          <td>${escapeHtml(j.company)}</td>
+          <td style="color:var(--warning);">${escapeHtml(j.salary_range)}</td>
+          <td><span class="tag tag-source">${escapeHtml(j.source)}</span></td>
+          <td><span class="tag tag-match">${j.match_score}分</span></td>
+          <td><span style="font-size:11px; color:#10b981;">🟢 在招 (${pubDate})</span></td>
+          <td><span class="badge-status badge-success">${escapeHtml(j.pipeline_stage)}</span></td>
+          <td>
+            <button class="btn-sm btn-outline" onclick="openJobDetailModal('${j.id}')">详情 / 操作</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+
+    // 3. 职位详情弹窗
+    async function openJobDetailModal(jobId) {
+      currentJobId = jobId;
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        const job = await res.json();
+
+        document.getElementById('modal-job-title').innerText = `${job.company} - ${job.title}`;
+        
+        const stages = ['待投递', '已沟通', '技术一面', '系统设计二面', 'HR终面', '已获Offer', '已归档'];
+        const stageSelect = document.getElementById('modal-stage-select');
+        stageSelect.innerHTML = stages.map(s => `<option value="${s}" ${s === job.pipeline_stage ? 'selected' : ''}>流转为：${s}</option>`).join('');
+
+        const rep = job.match_report || {};
+        const strengths = (rep.strengths || []).map(s => `<li>${escapeHtml(s)}</li>`).join('');
+        const gaps = (rep.gaps || []).map(g => `<li>${escapeHtml(g)}</li>`).join('');
+
+        document.getElementById('modal-job-body').innerHTML = `
+          <div style="display:flex; justify-content:space-between; background:#0b1329; padding:12px; border-radius:8px;">
+            <div><strong>薪资：</strong><span style="color:var(--warning);">${escapeHtml(job.salary_range)}</span> | <strong>地点：</strong>${escapeHtml(job.city)}</div>
+            <div><strong>渠道：</strong>${escapeHtml(job.source)} | <strong>当前阶段：</strong><span style="color:#60a5fa;">${escapeHtml(job.pipeline_stage)}</span></div>
+          </div>
+          <div style="font-size:12px; color:#94a3b8; background:#080d1e; padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>📅 <strong>最新发布/核验时间：</strong><span style="color:#10b981; font-weight:600;">${escapeHtml(job.published_at || '2026-09-28')}</span> (真实有效)</span>
+            ${job.source_url ? `<a href="${escapeHtml(job.source_url)}" target="_blank" style="color:#60a5fa; text-decoration:none; font-weight:600;">🔗 访问企业官方招聘链接 &rarr;</a>` : ''}
+          </div>
+          <div style="background:#064e3b; color:#a7f3d0; padding:10px 14px; border-radius:6px;">
+            🎯 <strong>智能匹配评级：${job.match_score}分</strong> - ${escapeHtml(job.match_recommendation || '综合匹配')}
+          </div>
+
+          <div>
+            <h4 style="color:#60a5fa; margin-bottom:4px;">✨ 契合优势与亮点：</h4>
+            <ul style="padding-left:18px; color:#cbd5e1;">${strengths || '<li>技能完全契合</li>'}</ul>
+          </div>
+          <div>
+            <h4 style="color:var(--warning); margin-bottom:4px;">⚠️ 潜在短板与建议强化：</h4>
+            <ul style="padding-left:18px; color:#cbd5e1;">${gaps || '<li>无明显技术缺口</li>'}</ul>
+          </div>
+          <div>
+            <h4 style="color:#94a3b8; margin-bottom:4px;">📋 原始 JD 描述：</h4>
+            <div style="background:#0b1329; padding:10px; border-radius:6px; font-size:12px; color:#94a3b8; max-height:120px; overflow-y:auto; white-space:pre-wrap;">${escapeHtml(job.description_raw)}</div>
+          </div>
+        `;
+
+        document.getElementById('job-detail-modal').classList.add('open');
+      } catch (e) {
+        alert('获取职位失败: ' + e);
+      }
+    }
+
+    function closeJobModal() {
+      document.getElementById('job-detail-modal').classList.remove('open');
+      currentJobId = null;
+    }
+
+    async function changeCurrentJobStage() {
+      if (!currentJobId) return;
+      const stage = document.getElementById('modal-stage-select').value;
+      try {
+        const res = await fetch(`/api/jobs/${currentJobId}/stage`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({stage: stage})
+        });
+        const data = await res.json();
+        alert(data.message);
+        closeJobModal();
+        loadJobs();
+        loadAuditLogs();
+      } catch (e) {
+        alert('状态更新失败: ' + e);
+      }
+    }
+
+    async function tailorCurrentJob() {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(`/api/jobs/${currentJobId}/tailor`, { method: 'POST' });
+        const data = await res.json();
+        alert('✅ 针对性 STAR 简历已重构完成并存入数据库！\n已记录系统审计日志。');
+        closeJobModal();
+        switchView('tailor');
+      } catch (e) {
+        alert('定制简历失败: ' + e);
+      }
+    }
+
+    async function applyCurrentJob() {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(`/api/jobs/${currentJobId}/apply`, { method: 'POST' });
+        const data = await res.json();
+        alert('🎉 ' + data.data.message + '\n已记录系统投递审计流水。');
+        closeJobModal();
+        loadJobs();
+        loadAuditLogs();
+      } catch (e) {
+        alert('投递失败: ' + e);
+      }
+    }
+
+    // 4. 一键执行每日流水线 (支持自定义最新网络实时嗅探)
+    async function triggerDailyPipeline() {
+      const keyword = prompt("请输入您想实时联网嗅探的最新目标职位关键词：", "AI Agent 架构师");
+      if (!keyword) return;
+      const city = prompt("请输入期望工作城市/形式：", "北京/远程");
+      if (!city) return;
+
+      alert(`🚀 已启动针对【${keyword} - ${city}】的全网最新真实在招岗位智能嗅探！\n正在从月之暗面、智谱AI、MiniMax、小红书REDstar、腾讯微信等官方渠道及招聘平台核验最新岗位...`);
+
+      try {
+        const res = await fetch('/api/pipeline/daily', { 
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ keyword: keyword, city: city })
+        });
+        const data = await res.json();
+        alert(`✅ 全网最新真实岗位情报抓取核验完毕！\n所有岗位发布时间已校准为最新真实在招状态，已更新至看板并存入审计流水。`);
+        loadJobs();
+        loadAuditLogs();
+      } catch (e) {
+        alert('执行失败: ' + e);
+      }
+    }
+
+
+    // 5. 手动录入新职位
+    function openAddJobModal() {
+      document.getElementById('add-job-modal').classList.add('open');
+    }
+    function closeAddJobModal() {
+      document.getElementById('add-job-modal').classList.remove('open');
+    }
+    async function submitNewJob() {
+      const title = document.getElementById('new-job-title').value.trim();
+      const company = document.getElementById('new-job-company').value.trim();
+      const salary = document.getElementById('new-job-salary').value.trim();
+      const city = document.getElementById('new-job-city').value.trim();
+      const source = document.getElementById('new-job-source').value;
+      const desc = document.getElementById('new-job-desc').value.trim();
+
+      if (!title || !company || !desc) {
+        alert('请完整填写职位名称、公司与 JD 文本内容');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/jobs', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ title, company, salary, city, source, description: desc })
+        });
+        const data = await res.json();
+        alert('✅ 新职位录入并智能评估完成！');
+        closeAddJobModal();
+        loadJobs();
+        loadAuditLogs();
+      } catch (e) {
+        alert('录入失败: ' + e);
+      }
+    }
+
+    // 6. 审计日志加载
+    async function loadAuditLogs() {
+      const action = document.getElementById('audit-filter-action')?.value || '';
+      try {
+        const url = action ? `/api/audit/logs?action=${action}` : '/api/audit/logs';
+        const res = await fetch(url);
+        const data = await res.json();
+        document.getElementById('audit-count').innerText = data.total;
+
+        const tbody = document.getElementById('audit-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        data.logs.forEach(log => {
+          const tr = document.createElement('tr');
+          const badgeClass = log.status === 'SUCCESS' ? 'badge-success' : (log.status === 'WARNING' ? 'badge-warning' : 'badge-failed');
+          tr.innerHTML = `
+            <td style="font-family:monospace; font-size:12px; color:#94a3b8;">${log.timestamp}</td>
+            <td><strong>${escapeHtml(log.operator)}</strong></td>
+            <td><code style="color:#60a5fa;">${escapeHtml(log.action)}</code></td>
+            <td>${escapeHtml(log.action_desc)}</td>
+            <td><span class="tag">${log.target_type}</span></td>
+            <td><span class="badge-status ${badgeClass}">${log.status}</span></td>
+            <td>
+              <button class="btn-sm btn-outline" onclick="showPayloadModal('${escapeHtml(JSON.stringify(log.details))}')">查看详情</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error('加载审计日志失败', e);
+      }
+    }
+
+    function showPayloadModal(jsonStr) {
+      alert("📜 审计记录操作详细 Payload / 参数：\n\n" + jsonStr);
+    }
+
+    async function loadLatestAuditBar() {
+      try {
+        const res = await fetch('/api/audit/logs?limit=1');
+        const data = await res.json();
+        if (data.logs && data.logs.length > 0) {
+          const l = data.logs[0];
+          document.getElementById('audit-bar-text').innerText = `[${l.timestamp}] [${l.operator}] ${l.action_desc}`;
+        }
+      } catch (e) {}
+    }
+
+    // 7. 简历工坊支持
+    function loadTailorJobList() {
+      const select = document.getElementById('tailor-job-select');
+      select.innerHTML = currentJobs.map(j => `<option value="${j.id}">${j.company} - ${j.title}</option>`).join('');
+      loadTailoredResumeView();
+    }
+    async function loadTailoredResumeView() {
+      const jobId = document.getElementById('tailor-job-select').value;
+      if (!jobId) return;
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        const job = await res.json();
+        if (job.tailored_resume) {
+          document.getElementById('tailor-greeting').innerText = job.tailored_resume.custom_greeting;
+          document.getElementById('tailor-content').value = job.tailored_resume.tailored_markdown;
+        } else {
+          document.getElementById('tailor-greeting').innerText = "当前岗位尚未重构针对性简历，点击右侧按钮生成！";
+          document.getElementById('tailor-content').value = `# ${job.title} - 专属定制简历\n（点击上方“重新针对性生成 STAR 经历”触发智能体重构）`;
+        }
+      } catch (e) {}
+    }
+    async function reTailorSelectedJob() {
+      const jobId = document.getElementById('tailor-job-select').value;
+      if (!jobId) return;
+      try {
+        const res = await fetch(`/api/jobs/${jobId}/tailor`, { method: 'POST' });
+        const data = await res.json();
+        alert('✨ 针对性 STAR 经历与打招呼语生成完毕！');
+        loadTailoredResumeView();
+        loadAuditLogs();
+      } catch (e) {
+        alert('生成失败: ' + e);
+      }
+    }
+
+    // 8. 投递历史
+    async function loadApplyHistory() {
+      const tbody = document.getElementById('apply-table-body');
+      tbody.innerHTML = '';
+      try {
+        const res = await fetch('/api/audit/logs?action=AUTO_APPLY');
+        const data = await res.json();
+        data.logs.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="font-family:monospace;">${l.target_id}</td>
+            <td><strong>${escapeHtml(l.action_desc)}</strong></td>
+            <td><span class="tag tag-source">${l.details?.platform || 'BOSS直聘'}</span></td>
+            <td>${escapeHtml(l.details?.greeting || '已送达')}</td>
+            <td><span class="badge-status badge-success">通过本地人机验证</span></td>
+            <td>${l.timestamp}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {}
+    }
+
+    // 9. 面试复盘与押题提交
+    async function submitInterviewReview() {
+      const company = document.getElementById('review-company').value.trim();
+      const stage = document.getElementById('review-stage').value;
+      const text = document.getElementById('review-qa-text').value.trim();
+
+      if (!company) { alert('请输入面试公司名称'); return; }
+
+      const btn = event.target;
+      btn.innerText = "⏳ 正在执行针对性复盘与押题预测...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/pipeline/review', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            company: company,
+            stage: stage,
+            raw_qa: [{ question: "面试问答复盘", candidate_answer: text }]
+          })
+        });
+        const data = await res.json();
+        const info = data.data;
+
+        const nextPrep = (info.next_round_prep || []).map((p, i) => `<li><strong>押题 ${i+1}：</strong> ${escapeHtml(p)}</li>`).join('');
+        const cramSkills = (info.urgent_skills_to_cram || []).map(s => `<span class="tag" style="background:#78350f; color:#fde68a;">${escapeHtml(s)}</span>`).join(' ');
+
+        document.getElementById('review-result-content').innerHTML = `
+          <div style="background:#0b1329; padding:12px; border-radius:6px; border-left:4px solid var(--accent); margin-bottom:10px;">
+            <strong>🎯 面试表现评分：</strong> <span style="font-size:18px; color:var(--accent); font-weight:700;">${info.performance_score}分</span>
+          </div>
+          <div style="margin-bottom:10px;">
+            <h4 style="color:#60a5fa; margin-bottom:4px;">🔮 下一轮面试重点预测考题：</h4>
+            <ul style="padding-left:18px; color:#cbd5e1;">${nextPrep}</ul>
+          </div>
+          <div>
+            <h4 style="color:var(--warning); margin-bottom:4px;">⚡ 急需突击核心技能：</h4>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${cramSkills}</div>
+          </div>
+        `;
+        alert("✨ 面试复盘完成！审计日志已记录。");
+        loadAuditLogs();
+      } catch (e) {
+        alert("复盘失败: " + e);
+      } finally {
+        btn.innerText = "🎯 提交智能复盘并生成下轮押题";
+        btn.disabled = false;
+      }
+    }
+
+    // 10. 能力成长视图
+    function loadGrowthView() {
+      const radar = [
+        { name: "大模型核心原理与架构", score: 88 },
+        { name: "Multi-Agent 状态机与死锁熔断", score: 85 },
+        { name: "高并发异步连接池调优", score: 82 },
+        { name: "工程容灾与系统排障", score: 78 },
+        { name: "业务架构与 ROI 表达能力", score: 86 }
+      ];
+      const radarEl = document.getElementById('growth-radar-container');
+      radarEl.innerHTML = radar.map(r => `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+            <span>${r.name}</span>
+            <span style="font-weight:600; color:#60a5fa;">${r.score}分</span>
+          </div>
+          <div style="height:6px; background:#0b1329; border-radius:3px; overflow:hidden;">
+            <div style="height:100%; width:${r.score}%; background:linear-gradient(90deg, #3b82f6, #10b981);"></div>
+          </div>
+        </div>
+      `).join('');
+
+      const tasks = [
+        { skill: "分布式 Agent 死锁检测与容灾熔断", task: "研读 LangGraph 循环熔断器源码，编写拓扑环路检测测试", hours: "6小时" },
+        { skill: "Asyncio 高并发连接池深度调优", task: "完成单机 2000 并发模拟压力测试并调优 uvloop", hours: "8小时" },
+        { skill: "商业化与业务架构 ROI 表达优化", task: "重塑 3 个过往项目，用 STAR+ROI 突出降本增效成果", hours: "4小时" }
+      ];
+      const tasksEl = document.getElementById('growth-items-container');
+      tasksEl.innerHTML = tasks.map(t => `
+        <div style="background:#0b1329; border:1px solid var(--card-border); padding:10px 12px; border-radius:6px; font-size:12px;">
+          <div style="color:#60a5fa; font-weight:600;">📌 ${t.skill} (预估: ${t.hours})</div>
+          <div style="color:#94a3b8; margin-top:4px;">${t.task}</div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>

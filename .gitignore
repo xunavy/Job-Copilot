@@ -1,0 +1,91 @@
+# ==========================================
+# FindJob Copilot - Git Ignore Configuration
+# 严防敏感信息、个人隐私与临时运行态泄露
+# ==========================================
+
+# 1. 核心敏感信息与私有环境配置 (绝对严禁提交)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+id_rsa*
+id_ed25519*
+secrets.json
+credentials.json
+
+# 2. 本地数据库与持久化数据 (包含个人求职、面试与审计日志)
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite3-journal
+
+# 3. 个人简历与私有文档
+*resume*.pdf
+*resume*.docx
+*简历*.pdf
+*简历*.docx
+uploads/
+downloads/
+
+# 4. Python 编译文件与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 5. 虚拟环境
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 6. IDE、编辑器与系统专属文件
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+
+# 7. 平台私有运行时与中间交付文件 (Multica Agent 运行时专用)
+.agents/
+.multica/
+AGENTS.md
+reply*.md
+delivery*.md
+
+# 8. 日志文件与测试覆盖率
+logs/
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
